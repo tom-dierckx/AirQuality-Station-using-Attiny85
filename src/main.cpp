@@ -51,6 +51,14 @@ void setup() {
   if(!myCCS811.begin()){
     Serial.println("setup: CCS811 begin FAILED");
   }
+   // Print CCS811 versions
+  Serial.print("setup: hardware    version: "); Serial.println(myCCS811.hardware_version(),HEX);
+  Serial.print("setup: bootloader  version: "); Serial.println(myCCS811.bootloader_version(),HEX);
+  Serial.print("setup: application version: "); Serial.println(myCCS811.application_version(),HEX);
+  // Start measuring
+  if(!myCCS811.start(CCS811_MODE_10SEC)){
+    Serial.println("setup: CCS811 begin FAILED");
+  }
   // setup SD card writer
   // Note that even if it's not used as the CS pin, the hardware SS pin 
   // (10 on most Arduino boards, 53 on the Mega) must be left as an output 
