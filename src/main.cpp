@@ -14,10 +14,10 @@
 
 bool sensorsReadyState = false;  // state if sensors are heated
 
-const unsigned long sensorHeatupTime = 10000;   // time for sensors to heat up
+const unsigned long sensorHeatupTime = 8000;   // time for sensors to heat up
 
 const unsigned int buttinpin = 7;   // pin used for button to cycle in the menu
-const unsigned int mq135pin = A0;   // connection pin for MQ135
+const unsigned int mq135pin = A0;   // connection pin for MQ135 -> 1 sensor value
 const unsigned int ccs811wakepin = 8;
 
 // i2c addresses
@@ -30,12 +30,23 @@ unsigned long previousbootinMillis = 0;
 unsigned int bootingdots = 0;
 
 LiquidCrystal_I2C lcd(lcdAddr, 16, 2);
-CCS811 myCCS811(ccs811wakepin, ccs811Addr);
+CCS811 myCCS811(ccs811wakepin, ccs811Addr); // 2 sensors CO2 and VOTC
 
 File myFile;
 
+char resultFileName[] = "results.csv"; 
+
+// total sensor types
+const int amountOfSensors = 3;
+unsigned long sensorOutputResults[amountOfSensors];
+String sensorNames[3] = {
+  "CCS811 - CO2", 
+  "CCS811 - Voc", 
+  "MQ135"
+};
+
 // sensor polling interval
-const unsigned long sensorPollingInterval = 4000;
+const unsigned long sensorPollingInterval = 15000;
 unsigned long previousPollingMillis = 0;
 
 void setup() {
@@ -52,9 +63,9 @@ void setup() {
     Serial.println("setup: CCS811 begin FAILED");
   }
    // Print CCS811 versions
-  Serial.print("setup: hardware    version: "); Serial.println(myCCS811.hardware_version(),HEX);
-  Serial.print("setup: bootloader  version: "); Serial.println(myCCS811.bootloader_version(),HEX);
-  Serial.print("setup: application version: "); Serial.println(myCCS811.application_version(),HEX);
+  // Serial.print("setup: hardware    version: "); Serial.println(myCCS811.hardware_version(),HEX);
+  // Serial.print("setup: bootloader  version: "); Serial.println(myCCS811.bootloader_version(),HEX);
+  // Serial.print("setup: application version: "); Serial.println(myCCS811.application_version(),HEX);
   // Start measuring
   if(!myCCS811.start(CCS811_MODE_10SEC)){
     Serial.println("setup: CCS811 begin FAILED");
@@ -97,20 +108,56 @@ void view() {
   // button control and the lcd display
 }
 
+
+
+
+void storageLogic() {
+  Serial.print("Sensordata: ");
+  
+  Serial.println();
+  if (!SD.exists(resultFileName)) {
+    Serial.print("File does not exist create and write header");
+    myFile = SD.open(resultFileName, FILE_WRITE);
+    myFile.println("SensorName,SensorId,SensorValue");
+    // close the file:
+    myFile.close();
+  }
+  myFile = SD.open(resultFileName, FILE_WRITE);
+  // if the file opened okay, write to it:
+  if (myFile) {
+    Serial.println("Writing to result file ...");
+    for (int i =0; i< amountOfSensors; i++) {
+      Serial.print(sensorOutputResults[i]);
+      Serial.print(" ");
+      myFile.println(sensorNames[i] + "," + i + ","+sensorOutputResults[i]);
+    }
+    // close the file:
+    myFile.close();
+    Serial.print("Closed file");
+  } else {
+  // if the file didn't open, print an error:
+    Serial.println("error opening result file");
+  }
+}
+
 void sensorLogic() {
-  // call 
   unsigned long currentMillis = millis();
   if(currentMillis - previousPollingMillis > sensorPollingInterval) {
     previousPollingMillis = currentMillis; 
+    /* 
+    
+          reading data from ccs811 sensor 
+
+    */
     uint16_t eco2, etvoc, errstat, raw;
     myCCS811.read(&eco2,&etvoc,&errstat,&raw); 
     if( errstat==CCS811_ERRSTAT_OK ) { 
       Serial.print("CCS811: ");
       Serial.print("eco2=");  Serial.print(eco2);     Serial.print(" ppm  ");
       Serial.print("etvoc="); Serial.print(etvoc);    Serial.print(" ppb  ");
-      //Serial.print("raw6=");  Serial.print(raw/1024); Serial.print(" uA  "); 
-      //Serial.print("raw10="); Serial.print(raw%1024); Serial.print(" ADC  ");
-      //Serial.print("R="); Serial.print((1650*1000L/1023)*(raw%1024)/(raw/1024)); Serial.print(" ohm");
+      // save to array
+      sensorOutputResults[0] = eco2;
+      sensorOutputResults[1] = etvoc;
       Serial.println();
     } else if( errstat==CCS811_ERRSTAT_OK_NODATA ) {
       Serial.println("CCS811: waiting for (new) data");
@@ -120,17 +167,23 @@ void sensorLogic() {
       Serial.print("CCS811: errstat="); Serial.print(errstat,HEX); 
       Serial.print("="); Serial.println( myCCS811.errstat_str(errstat) ); 
     }
+    /* 
+    
+          reading data from MQ135
+
+    */
+    int val = analogRead(mq135pin);
+    sensorOutputResults[2] = val;
+
+    // write to sd card
+    storageLogic();
   }
-}
-
-void storageLogic() {
-
+  
 }
 
 void start() {
   view();
   sensorLogic();
-  storageLogic();
 }
 
 void loop() {
