@@ -16,7 +16,13 @@ bool sensorsReadyState = false;  // state if sensors are heated
 
 const unsigned long sensorHeatupTime = 8000;   // time for sensors to heat up
 
-const unsigned int buttinpin = 7;   // pin used for button to cycle in the menu
+const unsigned int buttonPin = 7;   // pin used for button to cycle in the menu
+boolean buttonState = LOW;
+boolean previousButtonState = LOW;
+unsigned long previousButtonPollMillis = 0;
+const unsigned long buttonInterval = 20;
+unsigned int menuSelectedSensor = 0;
+
 const unsigned int mq135pin = A0;   // connection pin for MQ135 -> 1 sensor value
 const unsigned int ccs811wakepin = 8;
 
@@ -81,6 +87,13 @@ void setup() {
   } else {
     Serial.println("Started SPI");
   }
+  if (!SD.exists(resultFileName)) {
+    Serial.print("File does not exist create and write header");
+    myFile = SD.open(resultFileName, FILE_WRITE);
+    myFile.println("SensorName,SensorId,SensorValue");
+    // close the file:
+    myFile.close();
+  }
 }
 
 void showBootLoop(){
@@ -106,22 +119,37 @@ void showBootLoop(){
 void view() {
   // This method handles all the UI stuff 
   // button control and the lcd display
+  Serial.print("Selected Menu: ");
+  Serial.println(menuSelectedSensor);
+  unsigned long currentMillis = millis();
+  buttonState = digitalRead(buttonPin);
+  if(currentMillis - previousButtonPollMillis >= buttonInterval)
+  {
+    if (buttonState != previousButtonState) {
+      if (buttonState == HIGH) {
+      // if the current state is HIGH then the button went from off to on:
+        menuSelectedSensor++;
+        Serial.println("Button pressed");
+        lcd.clear();
+      } 
+    }
+    previousButtonPollMillis = currentMillis;
+    // increment on button press
+  }
+  if (menuSelectedSensor >= amountOfSensors) menuSelectedSensor = 0;
+
+  previousButtonState = buttonState;
+  lcd.setCursor(0, 0);
+  lcd.print(sensorNames[menuSelectedSensor]);
+  lcd.setCursor(0, 1);
+  lcd.print(sensorOutputResults[menuSelectedSensor]);
+  // reset when overshooting amount of sensors
 }
 
 
 
 
 void storageLogic() {
-  Serial.print("Sensordata: ");
-  
-  Serial.println();
-  if (!SD.exists(resultFileName)) {
-    Serial.print("File does not exist create and write header");
-    myFile = SD.open(resultFileName, FILE_WRITE);
-    myFile.println("SensorName,SensorId,SensorValue");
-    // close the file:
-    myFile.close();
-  }
   myFile = SD.open(resultFileName, FILE_WRITE);
   // if the file opened okay, write to it:
   if (myFile) {
