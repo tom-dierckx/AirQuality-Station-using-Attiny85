@@ -26,22 +26,6 @@ unsigned int menuSelectedSensor = 0;
 const unsigned int mq135pin = A0;   // connection pin for MQ135 -> 1 sensor value
 const unsigned int ccs811wakepin = 8;
 
-// DSM501A logic
-const unsigned int dsm25pin = 3; 
-const unsigned int dsm10pin = 2;
-float dsm25Concentration = 0; 
-float dsm10Concentration = 0;
-unsigned long dsm25Lowpulseoccupancy = 0;
-unsigned long dsm10Lowpulseoccupancy = 0;
-unsigned long  dsm25duration;
-unsigned long dsm10duration;
-float dsm25ratio = 0;
-float dsm10ratio = 0;
-unsigned long dsmstarttime;
-unsigned long dsm_sampletime_ms = 30000;
-
-uint32_t lowpulseoccupancy = 0;
-float ratio = 0;
 
 // i2c addresses
 const uint8_t lcdAddr = 0x38;
@@ -57,7 +41,7 @@ CCS811 myCCS811(ccs811wakepin, ccs811Addr); // 2 sensors CO2 and VOTC
 
 File myFile;
 
-char resultFileName[] = "results2.csv"; 
+char resultFileName[] = "results.csv"; 
 
 // total sensor types
 const int amountOfSensors = 3;
@@ -65,13 +49,11 @@ unsigned long sensorOutputResults[amountOfSensors];
 String sensorNames[amountOfSensors] = {
   "CCS811 - CO2", 
   "CCS811 - Voc", 
-  "MQ135",
-  // "DSM501A PM25",
-  // "DSM501A PM10"
+  "MQ135"
 };
 
 // sensor polling interval
-const unsigned long sensorPollingInterval = 60000;
+const unsigned long sensorPollingInterval = 15000;
 unsigned long previousPollingMillis = 0;
 
 void setup() {
@@ -112,7 +94,12 @@ void setup() {
     String header = "";
     for (int i = 0; i < amountOfSensors; i++)
     {
-      header.concat(sensorNames[i]);
+      if (i + 1 == amountOfSensors) {
+        // the last time the loop will run so do not add a comma to the line
+        header.concat(sensorNames[i]);
+      } else {
+        header.concat(sensorNames[i] + ",");
+        }
     }
     myFile.println(header);
     // close the file:
@@ -143,8 +130,6 @@ void showBootLoop(){
 void view() {
   // This method handles all the UI stuff 
   // button control and the lcd display
-  Serial.print("Selected Menu: ");
-  Serial.println(menuSelectedSensor);
   unsigned long currentMillis = millis();
   buttonState = digitalRead(buttonPin);
   if(currentMillis - previousButtonPollMillis >= buttonInterval)
@@ -182,11 +167,17 @@ void storageLogic() {
     for (int i =0; i < amountOfSensors; i++) {
       if (i + 1 == amountOfSensors) {
         // the last time the loop will run so do not add a comma to the line
-        row.concat(sensorOutputResults[i]);
+        Serial.print("Last sensor value: ");
+        Serial.println(sensorOutputResults[i]);
+        row.concat(String(sensorOutputResults[i]));
       } else {
-        row.concat(sensorOutputResults[i] + ",");
+        Serial.print("Sensor value: ");
+        Serial.println(sensorOutputResults[i]);
+        row.concat(String(sensorOutputResults[i]) + ",");
         }
     }
+    Serial.print("ROW to file: ");
+    Serial.println(row);
     myFile.println(row);
     // close the file:
     myFile.close();
@@ -235,6 +226,8 @@ void sensorLogic() {
     int val = analogRead(mq135pin);
     sensorOutputResults[2] = val;
 
+    // save to sd card
+    storageLogic();
   }
   
 }
