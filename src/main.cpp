@@ -60,14 +60,14 @@ File myFile;
 char resultFileName[] = "results2.csv"; 
 
 // total sensor types
-const int amountOfSensors = 5;
+const int amountOfSensors = 3;
 unsigned long sensorOutputResults[amountOfSensors];
 String sensorNames[amountOfSensors] = {
   "CCS811 - CO2", 
   "CCS811 - Voc", 
   "MQ135",
-  "DSM501A PM25",
-  "DSM501A PM10"
+  // "DSM501A PM25",
+  // "DSM501A PM10"
 };
 
 // sensor polling interval
@@ -119,25 +119,6 @@ void setup() {
     myFile.close();
   }
 }
-
-void readoutDSM501A() {
-	dsm25duration = pulseIn(dsm25pin, LOW);
-  dsm10duration = pulseIn(dsm10pin, LOW);
-  dsm25Lowpulseoccupancy = dsm25Lowpulseoccupancy+dsm25duration;
-  dsm10Lowpulseoccupancy = dsm10Lowpulseoccupancy+dsm10duration;
-  if ((millis()-dsmstarttime) > dsm_sampletime_ms)//if the sampel time == 30s
-  { 
-    dsm25ratio = dsm25Lowpulseoccupancy/(dsm_sampletime_ms*10.0);  // Integer percentage 0=>100
-    dsm25Concentration = 1.1*pow(dsm25ratio,3)-3.8*pow(dsm25ratio,2)+520*dsm25ratio+0.62; // using spec sheet curve
-    Serial.print("dsm25Concentration");
-    Serial.println(dsm25Concentration);
-    dsm10ratio = dsm10Lowpulseoccupancy/(dsm_sampletime_ms*10.0);  // Integer percentage 0=>100
-    dsm10Concentration = 1.1*pow(dsm10ratio,3)-3.8*pow(dsm10ratio,2)+520*dsm10ratio+0.62; // using spec sheet curve
-    Serial.print("dsm10Concentration");
-    Serial.println(dsm10Concentration);
-  }
-}
-
 
 void showBootLoop(){
   lcd.setCursor(0, 0);
@@ -254,16 +235,6 @@ void sensorLogic() {
     int val = analogRead(mq135pin);
     sensorOutputResults[2] = val;
 
-    /*
-
-          reading data from DSA501A
-
-    */
-   
-    sensorOutputResults[3] = dsm25Concentration;
-    sensorOutputResults[4] = dsm10Concentration;
-    // write to sd card
-    storageLogic();
   }
   
 }
