@@ -26,6 +26,23 @@ unsigned int menuSelectedSensor = 0;
 const unsigned int mq135pin = A0;   // connection pin for MQ135 -> 1 sensor value
 const unsigned int ccs811wakepin = 8;
 
+// DSM501A logic
+const unsigned int dsm25pin = 3; 
+const unsigned int dsm10pin = 2;
+float dsm25Concentration = 0; 
+float dsm10Concentration = 0;
+unsigned long dsm25Lowpulseoccupancy = 0;
+unsigned long dsm10Lowpulseoccupancy = 0;
+unsigned long  dsm25duration;
+unsigned long dsm10duration;
+float dsm25ratio = 0;
+float dsm10ratio = 0;
+unsigned long dsmstarttime;
+unsigned long dsm_sampletime_ms = 30000;
+
+uint32_t lowpulseoccupancy = 0;
+float ratio = 0;
+
 // i2c addresses
 const uint8_t lcdAddr = 0x38;
 const uint8_t ccs811Addr = 0x5B;
@@ -40,19 +57,21 @@ CCS811 myCCS811(ccs811wakepin, ccs811Addr); // 2 sensors CO2 and VOTC
 
 File myFile;
 
-char resultFileName[] = "results.csv"; 
+char resultFileName[] = "results2.csv"; 
 
 // total sensor types
-const int amountOfSensors = 3;
+const int amountOfSensors = 5;
 unsigned long sensorOutputResults[amountOfSensors];
-String sensorNames[3] = {
+String sensorNames[amountOfSensors] = {
   "CCS811 - CO2", 
   "CCS811 - Voc", 
-  "MQ135"
+  "MQ135",
+  "DSM501A PM25",
+  "DSM501A PM10"
 };
 
 // sensor polling interval
-const unsigned long sensorPollingInterval = 15000;
+const unsigned long sensorPollingInterval = 60000;
 unsigned long previousPollingMillis = 0;
 
 void setup() {
@@ -90,11 +109,35 @@ void setup() {
   if (!SD.exists(resultFileName)) {
     Serial.print("File does not exist create and write header");
     myFile = SD.open(resultFileName, FILE_WRITE);
-    myFile.println("SensorName,SensorId,SensorValue");
+    String header = "";
+    for (int i = 0; i < amountOfSensors; i++)
+    {
+      header.concat(sensorNames[i]);
+    }
+    myFile.println(header);
     // close the file:
     myFile.close();
   }
 }
+
+void readoutDSM501A() {
+	dsm25duration = pulseIn(dsm25pin, LOW);
+  dsm10duration = pulseIn(dsm10pin, LOW);
+  dsm25Lowpulseoccupancy = dsm25Lowpulseoccupancy+dsm25duration;
+  dsm10Lowpulseoccupancy = dsm10Lowpulseoccupancy+dsm10duration;
+  if ((millis()-dsmstarttime) > dsm_sampletime_ms)//if the sampel time == 30s
+  { 
+    dsm25ratio = dsm25Lowpulseoccupancy/(dsm_sampletime_ms*10.0);  // Integer percentage 0=>100
+    dsm25Concentration = 1.1*pow(dsm25ratio,3)-3.8*pow(dsm25ratio,2)+520*dsm25ratio+0.62; // using spec sheet curve
+    Serial.print("dsm25Concentration");
+    Serial.println(dsm25Concentration);
+    dsm10ratio = dsm10Lowpulseoccupancy/(dsm_sampletime_ms*10.0);  // Integer percentage 0=>100
+    dsm10Concentration = 1.1*pow(dsm10ratio,3)-3.8*pow(dsm10ratio,2)+520*dsm10ratio+0.62; // using spec sheet curve
+    Serial.print("dsm10Concentration");
+    Serial.println(dsm10Concentration);
+  }
+}
+
 
 void showBootLoop(){
   lcd.setCursor(0, 0);
@@ -154,11 +197,16 @@ void storageLogic() {
   // if the file opened okay, write to it:
   if (myFile) {
     Serial.println("Writing to result file ...");
-    for (int i =0; i< amountOfSensors; i++) {
-      Serial.print(sensorOutputResults[i]);
-      Serial.print(" ");
-      myFile.println(sensorNames[i] + "," + i + ","+sensorOutputResults[i]);
+    String row = "";
+    for (int i =0; i < amountOfSensors; i++) {
+      if (i + 1 == amountOfSensors) {
+        // the last time the loop will run so do not add a comma to the line
+        row.concat(sensorOutputResults[i]);
+      } else {
+        row.concat(sensorOutputResults[i] + ",");
+        }
     }
+    myFile.println(row);
     // close the file:
     myFile.close();
     Serial.print("Closed file");
@@ -169,7 +217,10 @@ void storageLogic() {
 }
 
 void sensorLogic() {
+  // start readout of DSM501A sensor
+  // readoutDSM501A();
   unsigned long currentMillis = millis();
+  // this means reading out sensor values if possible or reading data that is already present (like DSM501)
   if(currentMillis - previousPollingMillis > sensorPollingInterval) {
     previousPollingMillis = currentMillis; 
     /* 
@@ -203,6 +254,14 @@ void sensorLogic() {
     int val = analogRead(mq135pin);
     sensorOutputResults[2] = val;
 
+    /*
+
+          reading data from DSA501A
+
+    */
+   
+    sensorOutputResults[3] = dsm25Concentration;
+    sensorOutputResults[4] = dsm10Concentration;
     // write to sd card
     storageLogic();
   }
@@ -230,4 +289,3 @@ void loop() {
     showBootLoop();
   }
 }
-
