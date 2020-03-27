@@ -16,12 +16,13 @@ bool sensorsReadyState = false;  // state if sensors are heated
 
 const unsigned long sensorHeatupTime = 8000;   // time for sensors to heat up
 
-const unsigned int buttonPin = 7;   // pin used for button to cycle in the menu
+const unsigned int buttonPin = 2;   // pin used for button to cycle in the menu
 boolean buttonState = LOW;
 boolean previousButtonState = LOW;
 unsigned long previousButtonPollMillis = 0;
 const unsigned long buttonInterval = 20;
 unsigned int menuSelectedSensor = 0;
+unsigned int oldSelectedMenu = 0;
 
 const unsigned int mq135pin = A0;   // connection pin for MQ135 -> 1 sensor value
 const unsigned int ccs811wakepin = 8;
@@ -56,9 +57,17 @@ String sensorNames[amountOfSensors] = {
 const unsigned long sensorPollingInterval = 15000;
 unsigned long previousPollingMillis = 0;
 
+// declare before setup so calling is possible => https://community.platformio.org/t/order-of-function-declaration/4546/2
+void handleButtonPress();
+
 void setup() {
   // setup serial for debugging
   Serial.begin(9600);
+
+  // setup button as interrupt pin
+  
+  pinMode(buttonPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(buttonPin), handleButtonPress, CHANGE);
   // Setup lcd display
   lcd.init();                        // Initialize I2C LCD module
   lcd.backlight();                   // Turn backlight ON
@@ -107,6 +116,8 @@ void setup() {
   }
 }
 
+
+
 void showBootLoop(){
   lcd.setCursor(0, 0);
   lcd.print("Booting up");
@@ -127,36 +138,32 @@ void showBootLoop(){
   }
 }
 
+void handleButtonPress() {
+  buttonState = digitalRead(buttonPin);
+  if (buttonState == HIGH) {
+    menuSelectedSensor++;
+  }
+}
+
 void view() {
   // This method handles all the UI stuff 
-  // button control and the lcd display
+  // button changed in the last 20 millis it got pressed and we need to refresh the display
   unsigned long currentMillis = millis();
-  buttonState = digitalRead(buttonPin);
   if(currentMillis - previousButtonPollMillis >= buttonInterval)
   {
-    if (buttonState != previousButtonState) {
-      if (buttonState == HIGH) {
-      // if the current state is HIGH then the button went from off to on:
-        menuSelectedSensor++;
-        Serial.println("Button pressed");
-        lcd.clear();
-      } 
+    if(oldSelectedMenu != menuSelectedSensor) {
+      // change detected clear lcd for new data
+      lcd.clear();
     }
-    previousButtonPollMillis = currentMillis;
-    // increment on button press
+    oldSelectedMenu = menuSelectedSensor;
   }
   if (menuSelectedSensor >= amountOfSensors) menuSelectedSensor = 0;
-
-  previousButtonState = buttonState;
   lcd.setCursor(0, 0);
   lcd.print(sensorNames[menuSelectedSensor]);
   lcd.setCursor(0, 1);
   lcd.print(sensorOutputResults[menuSelectedSensor]);
   // reset when overshooting amount of sensors
 }
-
-
-
 
 void storageLogic() {
   myFile = SD.open(resultFileName, FILE_WRITE);
