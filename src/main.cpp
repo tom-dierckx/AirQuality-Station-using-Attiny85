@@ -47,7 +47,7 @@ char resultFileName[] = "results.csv";
 // total sensor types
 const int amountOfSensors = 3;
 unsigned long sensorOutputResults[amountOfSensors];
-String sensorNames[amountOfSensors] = {
+char sensorNames[amountOfSensors][16] = {
   "CCS811 - CO2", 
   "CCS811 - Voc", 
   "MQ135"
@@ -100,14 +100,16 @@ void setup() {
   if (!SD.exists(resultFileName)) {
     Serial.print("File does not exist create and write header");
     myFile = SD.open(resultFileName, FILE_WRITE);
-    String header = "";
+    // max header length is amount of sensors * 16 digits on display
+    char header[amountOfSensors*16];
     for (int i = 0; i < amountOfSensors; i++)
     {
       if (i + 1 == amountOfSensors) {
         // the last time the loop will run so do not add a comma to the line
-        header.concat(sensorNames[i]);
+        strcat(header, sensorNames[i]);
       } else {
-        header.concat(sensorNames[i] + ",");
+        strcat(header, sensorNames[i]);
+        strcat(header, ",");
         }
     }
     myFile.println(header);
