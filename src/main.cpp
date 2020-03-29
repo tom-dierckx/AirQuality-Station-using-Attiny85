@@ -11,7 +11,6 @@
 // SD for writing data to the SD card
 #include <SD.h>
 
-
 bool sensorsReadyState = false;  // state if sensors are heated
 
 const unsigned long sensorHeatupTime = 8000;   // time for sensors to heat up
@@ -24,9 +23,10 @@ const unsigned long buttonInterval = 20;
 unsigned int menuSelectedSensor = 0;
 unsigned int oldSelectedMenu = 0;
 
+// digital or analog pins
 const unsigned int mq135pin = A0;   // connection pin for MQ135 -> 1 sensor value
-const unsigned int ccs811wakepin = 8;
-
+const unsigned int ccs811wakepin = A2;
+const unsigned int dhtpin = 5;
 
 // i2c addresses
 const uint8_t lcdAddr = 0x38;
@@ -36,21 +36,29 @@ const uint8_t ccs811Addr = 0x5B;
 const unsigned long bootingDotsdelay = 1000;
 unsigned long previousbootinMillis = 0;
 unsigned int bootingdots = 0;
-
 LiquidCrystal_I2C lcd(lcdAddr, 16, 2);
 CCS811 myCCS811(ccs811wakepin, ccs811Addr); // 2 sensors CO2 and VOTC
 
+// file logic
 File myFile;
 
 char resultFileName[] = "results.csv"; 
 
 // total sensor types
-const int amountOfSensors = 3;
-unsigned long sensorOutputResults[amountOfSensors];
+const int amountOfSensors = 2;
+float sensorOutputResults[amountOfSensors];
 char sensorNames[amountOfSensors][16] = {
-  "CCS811 - CO2", 
-  "CCS811 - Voc", 
-  "MQ135"
+  "CCS811  CO2", 
+  "CCS811  Voc", 
+  // "DHT22  Temp",
+  // "DHT22  Humidity"
+};
+// order has to match sensorNames
+char sensorValueUnit[amountOfSensors][5] = {
+  "ppm", 
+  "ppb", 
+  // "*C",
+  // "%"
 };
 
 // sensor polling interval
@@ -78,22 +86,14 @@ void setup() {
   if(!myCCS811.begin()){
     Serial.println("setup: CCS811 begin FAILED");
   }
-   // Print CCS811 versions
-  // Serial.print("setup: hardware    version: "); Serial.println(myCCS811.hardware_version(),HEX);
-  // Serial.print("setup: bootloader  version: "); Serial.println(myCCS811.bootloader_version(),HEX);
-  // Serial.print("setup: application version: "); Serial.println(myCCS811.application_version(),HEX);
-  // Start measuring
+  
   if(!myCCS811.start(CCS811_MODE_10SEC)){
     Serial.println("setup: CCS811 begin FAILED");
   }
-  // setup SD card writer
-  // Note that even if it's not used as the CS pin, the hardware SS pin 
-  // (10 on most Arduino boards, 53 on the Mega) must be left as an output 
-  // or the SD library functions will not work. 
+  
   pinMode(10, OUTPUT);
   if (!SD.begin(4)) {
     Serial.println("initialization failed!");
-    return;
   } else {
     Serial.println("Started SPI");
   }
@@ -115,6 +115,8 @@ void setup() {
     myFile.println(header);
     // close the file:
     myFile.close();
+
+
   }
 }
 
@@ -142,7 +144,7 @@ void showBootLoop(){
 
 void handleButtonPress() {
   buttonState = digitalRead(buttonPin);
-  if (buttonState == HIGH) {
+  if (buttonState == LOW) {
     menuSelectedSensor++;
   }
 }
@@ -153,17 +155,25 @@ void view() {
   unsigned long currentMillis = millis();
   if(currentMillis - previousButtonPollMillis >= buttonInterval)
   {
+    // Serial.print("Currently selected menu");
+    // Serial.println(menuSelectedSensor);
     if(oldSelectedMenu != menuSelectedSensor) {
       // change detected clear lcd for new data
       lcd.clear();
     }
     oldSelectedMenu = menuSelectedSensor;
   }
-  if (menuSelectedSensor >= amountOfSensors) menuSelectedSensor = 0;
+  
+  if (menuSelectedSensor >= amountOfSensors) {
+    menuSelectedSensor = 0;
+    lcd.clear();
+  }
   lcd.setCursor(0, 0);
   lcd.print(sensorNames[menuSelectedSensor]);
   lcd.setCursor(0, 1);
   lcd.print(sensorOutputResults[menuSelectedSensor]);
+  lcd.setCursor(10, 1);
+  lcd.print(sensorValueUnit[menuSelectedSensor]);
   // reset when overshooting amount of sensors
 }
 
@@ -212,10 +222,6 @@ void sensorLogic() {
     uint16_t eco2, etvoc, errstat, raw;
     myCCS811.read(&eco2,&etvoc,&errstat,&raw); 
     if( errstat==CCS811_ERRSTAT_OK ) { 
-      Serial.print("CCS811: ");
-      Serial.print("eco2=");  Serial.print(eco2);     Serial.print(" ppm  ");
-      Serial.print("etvoc="); Serial.print(etvoc);    Serial.print(" ppb  ");
-      // save to array
       sensorOutputResults[0] = eco2;
       sensorOutputResults[1] = etvoc;
       Serial.println();
@@ -227,18 +233,11 @@ void sensorLogic() {
       Serial.print("CCS811: errstat="); Serial.print(errstat,HEX); 
       Serial.print("="); Serial.println( myCCS811.errstat_str(errstat) ); 
     }
-    /* 
     
-          reading data from MQ135
-
-    */
-    int val = analogRead(mq135pin);
-    sensorOutputResults[2] = val;
-
     // save to sd card
     storageLogic();
   }
-  
+
 }
 
 void start() {
