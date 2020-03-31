@@ -31,7 +31,7 @@ const unsigned int dhtpin = 5;
 // i2c addresses
 const uint8_t lcdAddr = 0x38;
 const uint8_t ccs811Addr = 0x5B;
-
+const uint8_t dht22Addr = 0x64;
 // bootup screen dot logic
 const unsigned long bootingDotsdelay = 1000;
 unsigned long previousbootinMillis = 0;
@@ -41,24 +41,40 @@ CCS811 myCCS811(ccs811wakepin, ccs811Addr); // 2 sensors CO2 and VOTC
 
 // file logic
 File myFile;
-
 char resultFileName[] = "results.csv"; 
 
+// dht 22 logic
+const int dhtResponseSize = 4;
+byte dhtData[dhtResponseSize] = { 0 };
+byte dhtBytesReceived = 0;
+// commands
+enum {
+    CMD_ID = 1,
+    CMD_READ_TEMP  = 2,
+    CMD_READ_HUMIDITY = 3
+  };
+unsigned long previousDhtHumidityPolling = 0;
+unsigned long previousDhtTemperaturePolling = 0;
+unsigned long dhtHumidityPollingInterval = 2000;
+unsigned long dhtTemperaturePollingInterval = 3000;
+float dhtTemperature;
+float dhtHumidity;
+
 // total sensor types
-const int amountOfSensors = 2;
+const int amountOfSensors = 4;
 float sensorOutputResults[amountOfSensors];
 char sensorNames[amountOfSensors][16] = {
   "CCS811  CO2", 
   "CCS811  Voc", 
-  // "DHT22  Temp",
-  // "DHT22  Humidity"
+  "DHT22  Temp",
+  "DHT22  Humidity"
 };
 // order has to match sensorNames
 char sensorValueUnit[amountOfSensors][5] = {
   "ppm", 
   "ppb", 
-  // "*C",
-  // "%"
+  "*C",
+  "%"
 };
 
 // sensor polling interval
@@ -68,12 +84,33 @@ unsigned long previousPollingMillis = 0;
 // declare before setup so calling is possible => https://community.platformio.org/t/order-of-function-declaration/4546/2
 void handleButtonPress();
 
+void sendCommand (byte cmd, int responseSize)
+  {
+  Wire.beginTransmission (dht22Addr);
+  Wire.write (cmd);
+  Wire.endTransmission ();
+  Wire.requestFrom (dht22Addr, dhtResponseSize);  
+}
+
 void setup() {
   // setup serial for debugging
   Serial.begin(9600);
 
+  // setup wire for i2c to dht sensor
+  Wire.begin (); 
+  sendCommand (CMD_ID, 1);
+  if (Wire.available ())
+    {
+    Serial.print ("Slave is ID: ");
+    Serial.println (Wire.read (), HEX);
+    }
+  else
+    Serial.println ("No response to ID request");
+  // refresh random using analog pin 0
+  // randomSeed(analogRead(0));
+  // dhtHumidityPollingInterval = random(2000, 3000);
+  // dhtTemperaturePollingInterval = random(2000, 3000);
   // setup button as interrupt pin
-  
   pinMode(buttonPin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(buttonPin), handleButtonPress, CHANGE);
   // Setup lcd display
@@ -143,9 +180,15 @@ void showBootLoop(){
 }
 
 void handleButtonPress() {
-  buttonState = digitalRead(buttonPin);
-  if (buttonState == LOW) {
-    menuSelectedSensor++;
+  static unsigned long last_interrupt_time = 0;
+  unsigned long interrupt_time = millis();
+   if (interrupt_time - last_interrupt_time > 20)
+  {
+    buttonState = digitalRead(buttonPin);
+    if (buttonState == LOW) {
+      menuSelectedSensor++;
+    }
+    last_interrupt_time = interrupt_time;
   }
 }
 
@@ -207,9 +250,41 @@ void storageLogic() {
   }
 }
 
+float getDhtData(byte cmd){
+  sendCommand(cmd, 4);
+  dhtBytesReceived = Wire.available();                                   // count how many bytes received
+  if (dhtBytesReceived == dhtResponseSize) {                                   // if received correct number of bytes...
+      for (byte i=0; i<dhtResponseSize; i++) dhtData[i] = Wire.read();         // read and store each byte
+      float result = *( (float*) dhtData);  
+      return result;                                            // print the received data
+  } else {                                                            // if received wrong number of bytes...
+      Serial.print(F("\nRequested "));                                // print message with how many bytes received
+      Serial.print(dhtResponseSize);
+      Serial.print(F(" bytes, but got "));
+      Serial.print(dhtBytesReceived);
+      Serial.print(F(" bytes\n"));
+  }
+}
+
+void collectDhtDataNotToFast() {
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousDhtHumidityPolling > dhtHumidityPollingInterval) {
+    previousDhtHumidityPolling = currentMillis;
+    dhtHumidity = getDhtData(CMD_READ_HUMIDITY);
+    Serial.print("Measured humidity:");
+    Serial.println(dhtHumidity);
+  }
+  if (currentMillis - previousDhtTemperaturePolling > dhtTemperaturePollingInterval) {
+    previousDhtTemperaturePolling = currentMillis;
+    dhtTemperature = getDhtData(CMD_READ_TEMP);
+    Serial.print("Measured temperature:");
+    Serial.println(dhtTemperature);
+  }
+}
+
 void sensorLogic() {
   // start readout of DSM501A sensor
-  // readoutDSM501A();
+  collectDhtDataNotToFast();
   unsigned long currentMillis = millis();
   // this means reading out sensor values if possible or reading data that is already present (like DSM501)
   if(currentMillis - previousPollingMillis > sensorPollingInterval) {
@@ -234,6 +309,9 @@ void sensorLogic() {
       Serial.print("="); Serial.println( myCCS811.errstat_str(errstat) ); 
     }
     
+    // get dht data
+    sensorOutputResults[2] = dhtTemperature;
+    sensorOutputResults[3] = dhtHumidity;
     // save to sd card
     storageLogic();
   }
