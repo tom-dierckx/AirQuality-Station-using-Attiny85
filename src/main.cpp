@@ -47,8 +47,8 @@ const char resultFileName[] = "results.csv";
 
 // dht 22 logic
 const uint8_t dhtResponseSize = 4;
-byte dhtData[dhtResponseSize] = { 0 };
-byte dhtBytesReceived = 0;
+// byte dhtData[dhtResponseSize] = { 0 };
+// byte dhtBytesReceived = 0;
 // commands REMOVED TO SAVE MEMORY
 // const enum {
 //     CMD_ID = 1,
@@ -80,6 +80,10 @@ const char sensorValueUnit[amountOfSensors][4] = {
 // sensor polling interval
 const unsigned short sensorPollingInterval = 15000;
 unsigned long previousPollingMillis = 0;
+
+// lcd variable
+unsigned long previousButtonPressMillis = 0;
+unsigned short lcdTimeToSleep = 15000;
 
 // declare before setup so calling is possible => https://community.platformio.org/t/order-of-function-declaration/4546/2
 void handleButtonPress();
@@ -203,10 +207,17 @@ void view() {
     if(oldSelectedMenu != menuSelectedSensor) {
       // change detected clear lcd for new data
       lcd.clear();
+      lcd.backlight();
+      // reset timer
+      previousButtonPressMillis = currentMillis;
     }
     oldSelectedMenu = menuSelectedSensor;
   }
   
+  if (currentMillis - previousButtonPressMillis > lcdTimeToSleep ) {
+     lcd.noBacklight();
+  }
+
   if (menuSelectedSensor >= amountOfSensors) {
     menuSelectedSensor = 0;
     lcd.clear();
@@ -243,8 +254,9 @@ void storageLogic() {
 }
 
 short getDhtData(byte cmd){
-  sendCommand(cmd, 4);
-  dhtBytesReceived = Wire.available();                                   // count how many bytes received
+  sendCommand(cmd, dhtResponseSize);
+  byte dhtBytesReceived = Wire.available();    
+  byte dhtData[dhtResponseSize];
   if (dhtBytesReceived == dhtResponseSize) {                                   // if received correct number of bytes...
       for (byte i=0; i<dhtResponseSize; i++) dhtData[i] = Wire.read();         // read and store each byte
       // float result = *( (float*) dhtData);  
@@ -252,9 +264,9 @@ short getDhtData(byte cmd){
   } else {                                                            // if received wrong number of bytes...
       Serial.print(F("\nRequested "));                                // print message with how many bytes received
       Serial.print(dhtResponseSize);
-      Serial.print(F(" bytes, but got "));
+      Serial.print(F(" got "));
       Serial.print(dhtBytesReceived);
-      Serial.print(F(" bytes\n"));
+      Serial.println();
   }
 }
 
@@ -271,7 +283,7 @@ void collectDhtDataNotToFast() {
 }
 
 void sensorLogic() {
-  // start readout of DSM501A sensor
+  // reading data from dht
   collectDhtDataNotToFast();
   unsigned long currentMillis = millis();
   // this means reading out sensor values if possible or reading data that is already present (like DSM501)
@@ -297,7 +309,7 @@ void sensorLogic() {
       Serial.print("="); Serial.println( myCCS811.errstat_str(errstat) ); 
     }
     
-    // save to sd card
+    // save sensor values to SD Card to sd card
     storageLogic();
   }
 
@@ -317,6 +329,7 @@ void loop() {
   if(currentMillis > sensorHeatupTime || sensorsReadyState) {
     if (sensorsReadyState == false) {
       sensorsReadyState = true;
+      lcd.clear();
     }
     start();
   } else {
