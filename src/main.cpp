@@ -1,4 +1,6 @@
 #include <Arduino.h>
+
+// #include <MemoryFree.h>
 // communication
 // wire for i2c
 #include <Wire.h> 
@@ -13,27 +15,27 @@
 
 bool sensorsReadyState = false;  // state if sensors are heated
 
-const unsigned long sensorHeatupTime = 8000;   // time for sensors to heat up
+const unsigned short sensorHeatupTime = 8000;   // time for sensors to heat up
 
-const unsigned int buttonPin = 2;   // pin used for button to cycle in the menu
+const uint8_t buttonPin = 2;   // pin used for button to cycle in the menu
 boolean buttonState = LOW;
 boolean previousButtonState = LOW;
 unsigned long previousButtonPollMillis = 0;
-const unsigned long buttonInterval = 20;
-unsigned int menuSelectedSensor = 0;
-unsigned int oldSelectedMenu = 0;
+const  uint8_t buttonInterval = 20;
+uint8_t menuSelectedSensor = 0;
+uint8_t oldSelectedMenu = 0;
 
 // digital or analog pins
-const unsigned int mq135pin = A0;   // connection pin for MQ135 -> 1 sensor value
-const unsigned int ccs811wakepin = A2;
-const unsigned int dhtpin = 5;
+const uint8_t mq135pin = A0;   // connection pin for MQ135 -> 1 sensor value
+const uint8_t ccs811wakepin = A2;
+const uint8_t dhtpin = 5;
 
 // i2c addresses
 const uint8_t lcdAddr = 0x38;
 const uint8_t ccs811Addr = 0x5B;
 const uint8_t dht22Addr = 0x64;
 // bootup screen dot logic
-const unsigned long bootingDotsdelay = 1000;
+const unsigned short bootingDotsdelay = 1000;
 unsigned long previousbootinMillis = 0;
 unsigned int bootingdots = 0;
 LiquidCrystal_I2C lcd(lcdAddr, 16, 2);
@@ -41,36 +43,34 @@ CCS811 myCCS811(ccs811wakepin, ccs811Addr); // 2 sensors CO2 and VOTC
 
 // file logic
 File myFile;
-char resultFileName[] = "results.csv"; 
+const char resultFileName[] = "results.csv"; 
 
 // dht 22 logic
-const int dhtResponseSize = 4;
+const uint8_t dhtResponseSize = 4;
 byte dhtData[dhtResponseSize] = { 0 };
 byte dhtBytesReceived = 0;
-// commands
-enum {
-    CMD_ID = 1,
-    CMD_READ_TEMP  = 2,
-    CMD_READ_HUMIDITY = 3
-  };
+// commands REMOVED TO SAVE MEMORY
+// const enum {
+//     CMD_ID = 1,
+//     CMD_READ_TEMP  = 2,
+//     CMD_READ_HUMIDITY = 3
+//   };
 unsigned long previousDhtHumidityPolling = 0;
 unsigned long previousDhtTemperaturePolling = 0;
-unsigned long dhtHumidityPollingInterval = 2000;
-unsigned long dhtTemperaturePollingInterval = 3000;
-float dhtTemperature;
-float dhtHumidity;
+unsigned short dhtHumidityPollingInterval = 2000;
+unsigned short dhtTemperaturePollingInterval = 3000;
 
 // total sensor types
-const int amountOfSensors = 4;
-float sensorOutputResults[amountOfSensors];
-char sensorNames[amountOfSensors][16] = {
-  "CCS811  CO2", 
-  "CCS811  Voc", 
-  "DHT22  Temp",
-  "DHT22  Humidity"
+const uint8_t amountOfSensors = 4;
+short sensorOutputResults[amountOfSensors];
+const char sensorNames[amountOfSensors][6] = {
+  "CO2", 
+  "Voc", 
+  "Temp",
+  "Humid"
 };
 // order has to match sensorNames
-char sensorValueUnit[amountOfSensors][5] = {
+const char sensorValueUnit[amountOfSensors][4] = {
   "ppm", 
   "ppb", 
   "*C",
@@ -78,7 +78,7 @@ char sensorValueUnit[amountOfSensors][5] = {
 };
 
 // sensor polling interval
-const unsigned long sensorPollingInterval = 15000;
+const unsigned short sensorPollingInterval = 15000;
 unsigned long previousPollingMillis = 0;
 
 // declare before setup so calling is possible => https://community.platformio.org/t/order-of-function-declaration/4546/2
@@ -98,7 +98,7 @@ void setup() {
 
   // setup wire for i2c to dht sensor
   Wire.begin (); 
-  sendCommand (CMD_ID, 1);
+  sendCommand (1, 1);
   if (Wire.available ())
     {
     Serial.print ("Slave is ID: ");
@@ -224,39 +224,31 @@ void storageLogic() {
   myFile = SD.open(resultFileName, FILE_WRITE);
   // if the file opened okay, write to it:
   if (myFile) {
-    Serial.println("Writing to result file ...");
     String row = "";
     for (int i =0; i < amountOfSensors; i++) {
       if (i + 1 == amountOfSensors) {
         // the last time the loop will run so do not add a comma to the line
-        Serial.print("Last sensor value: ");
-        Serial.println(sensorOutputResults[i]);
         row.concat(String(sensorOutputResults[i]));
       } else {
-        Serial.print("Sensor value: ");
-        Serial.println(sensorOutputResults[i]);
         row.concat(String(sensorOutputResults[i]) + ",");
         }
     }
-    Serial.print("ROW to file: ");
-    Serial.println(row);
     myFile.println(row);
     // close the file:
     myFile.close();
-    Serial.print("Closed file");
   } else {
   // if the file didn't open, print an error:
     Serial.println("error opening result file");
   }
 }
 
-float getDhtData(byte cmd){
+short getDhtData(byte cmd){
   sendCommand(cmd, 4);
   dhtBytesReceived = Wire.available();                                   // count how many bytes received
   if (dhtBytesReceived == dhtResponseSize) {                                   // if received correct number of bytes...
       for (byte i=0; i<dhtResponseSize; i++) dhtData[i] = Wire.read();         // read and store each byte
-      float result = *( (float*) dhtData);  
-      return result;                                            // print the received data
+      // float result = *( (float*) dhtData);  
+      return (short) *( (float*) dhtData);                                            // print the received data
   } else {                                                            // if received wrong number of bytes...
       Serial.print(F("\nRequested "));                                // print message with how many bytes received
       Serial.print(dhtResponseSize);
@@ -270,15 +262,11 @@ void collectDhtDataNotToFast() {
   unsigned long currentMillis = millis();
   if (currentMillis - previousDhtHumidityPolling > dhtHumidityPollingInterval) {
     previousDhtHumidityPolling = currentMillis;
-    dhtHumidity = getDhtData(CMD_READ_HUMIDITY);
-    Serial.print("Measured humidity:");
-    Serial.println(dhtHumidity);
+    sensorOutputResults[3] = getDhtData(3);
   }
   if (currentMillis - previousDhtTemperaturePolling > dhtTemperaturePollingInterval) {
     previousDhtTemperaturePolling = currentMillis;
-    dhtTemperature = getDhtData(CMD_READ_TEMP);
-    Serial.print("Measured temperature:");
-    Serial.println(dhtTemperature);
+    sensorOutputResults[2] = getDhtData(2);
   }
 }
 
@@ -301,7 +289,7 @@ void sensorLogic() {
       sensorOutputResults[1] = etvoc;
       Serial.println();
     } else if( errstat==CCS811_ERRSTAT_OK_NODATA ) {
-      Serial.println("CCS811: waiting for (new) data");
+      Serial.println(F("CCS811: waiting for (new) data"));
     } else if( errstat & CCS811_ERRSTAT_I2CFAIL ) { 
       Serial.println("CCS811: I2C error");
     } else {
@@ -309,9 +297,6 @@ void sensorLogic() {
       Serial.print("="); Serial.println( myCCS811.errstat_str(errstat) ); 
     }
     
-    // get dht data
-    sensorOutputResults[2] = dhtTemperature;
-    sensorOutputResults[3] = dhtHumidity;
     // save to sd card
     storageLogic();
   }
@@ -331,7 +316,6 @@ void loop() {
   }
   if(currentMillis > sensorHeatupTime || sensorsReadyState) {
     if (sensorsReadyState == false) {
-      Serial.println("Application has started");
       sensorsReadyState = true;
     }
     start();
