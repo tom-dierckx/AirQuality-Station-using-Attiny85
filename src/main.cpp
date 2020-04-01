@@ -46,7 +46,7 @@ File myFile;
 const char resultFileName[] = "results.csv"; 
 
 // dht 22 logic
-const uint8_t dhtResponseSize = 4;
+const uint8_t dhtResponseSize = 8;
 // byte dhtData[dhtResponseSize] = { 0 };
 // byte dhtBytesReceived = 0;
 // commands REMOVED TO SAVE MEMORY
@@ -93,7 +93,7 @@ void sendCommand (byte cmd, int responseSize)
   Wire.beginTransmission (dht22Addr);
   Wire.write (cmd);
   Wire.endTransmission ();
-  Wire.requestFrom (dht22Addr, dhtResponseSize);  
+  Wire.requestFrom (dht22Addr, responseSize);  
 }
 
 void setup() {
@@ -253,14 +253,25 @@ void storageLogic() {
   }
 }
 
-short getDhtData(byte cmd){
-  sendCommand(cmd, dhtResponseSize);
+void getDhtData(){
+  sendCommand(4, dhtResponseSize);
   byte dhtBytesReceived = Wire.available();    
   byte dhtData[dhtResponseSize];
   if (dhtBytesReceived == dhtResponseSize) {                                   // if received correct number of bytes...
       for (byte i=0; i<dhtResponseSize; i++) dhtData[i] = Wire.read();         // read and store each byte
       // float result = *( (float*) dhtData);  
-      return (short) *( (float*) dhtData);                                            // print the received data
+      byte tempHumidity[4] = { 00 };
+      tempHumidity[0] = dhtData[0];
+      tempHumidity[1] = dhtData[1];
+      tempHumidity[2] = dhtData[2];
+      tempHumidity[3] = dhtData[3];
+      sensorOutputResults[3] = (short)*( (float*) tempHumidity);
+      byte tempTemparature[4] = { 00 };
+      tempTemparature[0] = dhtData[4];
+      tempTemparature[1] = dhtData[5];
+      tempTemparature[2] = dhtData[6];
+      tempTemparature[3] = dhtData[7];
+      sensorOutputResults[2] = (short)*( (float*) tempTemparature);
   } else {                                                            // if received wrong number of bytes...
       Serial.print(F("\nRequested "));                                // print message with how many bytes received
       Serial.print(dhtResponseSize);
@@ -270,21 +281,8 @@ short getDhtData(byte cmd){
   }
 }
 
-void collectDhtDataNotToFast() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousDhtHumidityPolling > dhtHumidityPollingInterval) {
-    previousDhtHumidityPolling = currentMillis;
-    sensorOutputResults[3] = getDhtData(3);
-  }
-  if (currentMillis - previousDhtTemperaturePolling > dhtTemperaturePollingInterval) {
-    previousDhtTemperaturePolling = currentMillis;
-    sensorOutputResults[2] = getDhtData(2);
-  }
-}
-
 void sensorLogic() {
   // reading data from dht
-  collectDhtDataNotToFast();
   unsigned long currentMillis = millis();
   // this means reading out sensor values if possible or reading data that is already present (like DSM501)
   if(currentMillis - previousPollingMillis > sensorPollingInterval) {
@@ -307,7 +305,7 @@ void sensorLogic() {
       Serial.print("CCS811: errstat="); Serial.print(errstat,HEX); 
       Serial.print("="); Serial.println( myCCS811.errstat_str(errstat) ); 
     }
-    
+    getDhtData();
     // save sensor values to SD Card to sd card
     storageLogic();
   }
