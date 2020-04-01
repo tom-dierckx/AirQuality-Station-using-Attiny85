@@ -299,7 +299,6 @@ void sensorLogic() {
     if( errstat==CCS811_ERRSTAT_OK ) { 
       sensorOutputResults[0] = eco2;
       sensorOutputResults[1] = etvoc;
-      Serial.println();
     } else if( errstat==CCS811_ERRSTAT_OK_NODATA ) {
       Serial.println(F("CCS811: waiting for (new) data"));
     } else if( errstat & CCS811_ERRSTAT_I2CFAIL ) { 
