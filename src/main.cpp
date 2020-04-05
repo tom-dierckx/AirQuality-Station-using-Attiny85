@@ -254,12 +254,13 @@ void storageLogic() {
 }
 
 void getDhtData(){
+  // Code on the other i2c controller https://github.com/tom-dierckx/DHT-attiny85-i2c
   sendCommand(4, dhtResponseSize);
   byte dhtBytesReceived = Wire.available();    
   byte dhtData[dhtResponseSize];
   if (dhtBytesReceived == dhtResponseSize) {                                   // if received correct number of bytes...
       for (byte i=0; i<dhtResponseSize; i++) dhtData[i] = Wire.read();         // read and store each byte
-      // float result = *( (float*) dhtData);  
+      // Not clean but it works
       byte tempHumidity[4] = { 00 };
       tempHumidity[0] = dhtData[0];
       tempHumidity[1] = dhtData[1];
