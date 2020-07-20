@@ -4,20 +4,26 @@
 // communication
 // wire for i2c
 #include <Wire.h> 
-// SPI for like yea SPI
+// SPI for like SPI
 #include <SPI.h>
 // display class
 #include <LiquidCrystal_I2C.h>
 // CCS811 class
-#include "ccs811.h"
+#include "Adafruit_CCS811.h"
 // SD for writing data to the SD card
 #include <SD.h>
+
+#include <Wire.h>
+
+// libs for BME280
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
 
 bool sensorsReadyState = false;  // state if sensors are heated
 
 const unsigned short sensorHeatupTime = 8000;   // time for sensors to heat up
 
-const uint8_t buttonPin = 2;   // pin used for button to cycle in the menu
+const uint8_t buttonPin = 5;   // pin used for button to cycle in the menu
 boolean buttonState = LOW;
 boolean previousButtonState = LOW;
 unsigned long previousButtonPollMillis = 0;
@@ -26,55 +32,47 @@ uint8_t menuSelectedSensor = 0;
 uint8_t oldSelectedMenu = 0;
 
 // digital or analog pins
-const uint8_t mq135pin = A0;   // connection pin for MQ135 -> 1 sensor value
-const uint8_t ccs811wakepin = A2;
-const uint8_t dhtpin = 5;
+const uint8_t ccs811wakepin = 5;
 
 // i2c addresses
-const uint8_t lcdAddr = 0x38;
-const uint8_t ccs811Addr = 0x5B;
-const uint8_t dht22Addr = 0x64;
+const uint8_t lcdAddr = 0x27;
+const uint8_t ccs811Addr = 0x5A;
+const uint8_t bme280Addr = 0x76;
 // bootup screen dot logic
 const unsigned short bootingDotsdelay = 1000;
 unsigned long previousbootinMillis = 0;
 unsigned int bootingdots = 0;
 LiquidCrystal_I2C lcd(lcdAddr, 16, 2);
-CCS811 myCCS811(ccs811wakepin, ccs811Addr); // 2 sensors CO2 and VOTC
+
+Adafruit_BME280 bme;
+Adafruit_CCS811 ccs;
+
+// for altitude calculation
+#define SEALEVELPRESSURE_HPA (1013.25)
 
 // file logic
 File myFile;
 const char resultFileName[] = "results.csv"; 
 
-// dht 22 logic
-const uint8_t dhtResponseSize = 8;
-// byte dhtData[dhtResponseSize] = { 0 };
-// byte dhtBytesReceived = 0;
-// commands REMOVED TO SAVE MEMORY
-// const enum {
-//     CMD_ID = 1,
-//     CMD_READ_TEMP  = 2,
-//     CMD_READ_HUMIDITY = 3
-//   };
-unsigned long previousDhtHumidityPolling = 0;
-unsigned long previousDhtTemperaturePolling = 0;
-unsigned short dhtHumidityPollingInterval = 2000;
-unsigned short dhtTemperaturePollingInterval = 3000;
-
 // total sensor types
-const uint8_t amountOfSensors = 4;
-short sensorOutputResults[amountOfSensors];
-const char sensorNames[amountOfSensors][6] = {
+const uint8_t amountOfSensors = 6;
+float sensorOutputResults[amountOfSensors];
+const char sensorNames[amountOfSensors][14] = {
   "CO2", 
   "Voc", 
   "Temp",
-  "Humid"
+  "Humidity",
+  "BaroPressure",
+  "Altitude"
 };
 // order has to match sensorNames
 const char sensorValueUnit[amountOfSensors][4] = {
   "ppm", 
   "ppb", 
   "*C",
-  "%"
+  "%",
+  "hPa",
+  "m"
 };
 
 // sensor polling interval
@@ -88,32 +86,11 @@ unsigned short lcdTimeToSleep = 15000;
 // declare before setup so calling is possible => https://community.platformio.org/t/order-of-function-declaration/4546/2
 void handleButtonPress();
 
-void sendCommand (byte cmd, int responseSize)
-  {
-  Wire.beginTransmission (dht22Addr);
-  Wire.write (cmd);
-  Wire.endTransmission ();
-  Wire.requestFrom (dht22Addr, responseSize);  
-}
-
 void setup() {
   // setup serial for debugging
   Serial.begin(9600);
-
-  // setup wire for i2c to dht sensor
-  Wire.begin (); 
-  sendCommand (1, 1);
-  if (Wire.available ())
-    {
-    Serial.print ("Slave is ID: ");
-    Serial.println (Wire.read (), HEX);
-    }
-  else
-    Serial.println ("No response to ID request");
   // refresh random using analog pin 0
   // randomSeed(analogRead(0));
-  // dhtHumidityPollingInterval = random(2000, 3000);
-  // dhtTemperaturePollingInterval = random(2000, 3000);
   // setup button as interrupt pin
   pinMode(buttonPin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(buttonPin), handleButtonPress, CHANGE);
@@ -124,15 +101,14 @@ void setup() {
   Serial.println("Started LCD");
   // setup sensors
   // setup CCS811 => carbon dioxide (eCO2) and metal oxide (MOX)
-  if(!myCCS811.begin()){
-    Serial.println("setup: CCS811 begin FAILED");
+  if(!ccs.begin()){
+    Serial.println("Failed to start sensor! Please check your wiring.");
+    while(1);
   }
-  
-  if(!myCCS811.start(CCS811_MODE_10SEC)){
-    Serial.println("setup: CCS811 begin FAILED");
-  }
-  
-  pinMode(10, OUTPUT);
+  if (!bme.begin(bme280Addr)) {
+		Serial.println("Could not find a valid BME280 sensor, check wiring!");
+		while (1);
+	}
   if (!SD.begin(4)) {
     Serial.println("initialization failed!");
   } else {
@@ -253,35 +229,6 @@ void storageLogic() {
   }
 }
 
-void getDhtData(){
-  // Code on the other i2c controller https://github.com/tom-dierckx/DHT-attiny85-i2c
-  sendCommand(4, dhtResponseSize);
-  byte dhtBytesReceived = Wire.available();    
-  byte dhtData[dhtResponseSize];
-  if (dhtBytesReceived == dhtResponseSize) {                                   // if received correct number of bytes...
-      for (byte i=0; i<dhtResponseSize; i++) dhtData[i] = Wire.read();         // read and store each byte
-      // Not clean but it works
-      byte tempHumidity[4] = { 00 };
-      tempHumidity[0] = dhtData[0];
-      tempHumidity[1] = dhtData[1];
-      tempHumidity[2] = dhtData[2];
-      tempHumidity[3] = dhtData[3];
-      sensorOutputResults[3] = (short)*( (float*) tempHumidity);
-      byte tempTemparature[4] = { 00 };
-      tempTemparature[0] = dhtData[4];
-      tempTemparature[1] = dhtData[5];
-      tempTemparature[2] = dhtData[6];
-      tempTemparature[3] = dhtData[7];
-      sensorOutputResults[2] = (short)*( (float*) tempTemparature);
-  } else {                                                            // if received wrong number of bytes...
-      Serial.print(F("\nRequested "));                                // print message with how many bytes received
-      Serial.print(dhtResponseSize);
-      Serial.print(F(" got "));
-      Serial.print(dhtBytesReceived);
-      Serial.println();
-  }
-}
-
 void sensorLogic() {
   // reading data from dht
   unsigned long currentMillis = millis();
@@ -293,20 +240,21 @@ void sensorLogic() {
           reading data from ccs811 sensor 
 
     */
-    uint16_t eco2, etvoc, errstat, raw;
-    myCCS811.read(&eco2,&etvoc,&errstat,&raw); 
-    if( errstat==CCS811_ERRSTAT_OK ) { 
-      sensorOutputResults[0] = eco2;
-      sensorOutputResults[1] = etvoc;
-    } else if( errstat==CCS811_ERRSTAT_OK_NODATA ) {
-      Serial.println(F("CCS811: waiting for (new) data"));
-    } else if( errstat & CCS811_ERRSTAT_I2CFAIL ) { 
-      Serial.println("CCS811: I2C error");
-    } else {
-      Serial.print("CCS811: errstat="); Serial.print(errstat,HEX); 
-      Serial.print("="); Serial.println( myCCS811.errstat_str(errstat) ); 
+    if(ccs.available()){
+      if(!ccs.readData()){
+        sensorOutputResults[0] = ccs.geteCO2();
+        sensorOutputResults[1] = ccs.getTVOC();
+      }
+      else{
+        Serial.println("ERROR!");
+        while(1);
+      }
     }
-    getDhtData();
+    
+    sensorOutputResults[2] = bme.readTemperature();
+    sensorOutputResults[3] = bme.readHumidity();
+    sensorOutputResults[4] = bme.readPressure() / 100.0F;
+    sensorOutputResults[5] = bme.readAltitude(SEALEVELPRESSURE_HPA);
     // save sensor values to SD Card to sd card
     storageLogic();
   }
