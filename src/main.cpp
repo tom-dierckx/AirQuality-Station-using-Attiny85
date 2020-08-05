@@ -48,11 +48,12 @@ Adafruit_BME280 bme;
 Adafruit_CCS811 ccs;
 
 // for altitude calculation
-#define SEALEVELPRESSURE_HPA (1013.25)
+#define SEALEVELPRESSURE_HPA (1025)
 
 // file logic
 File myFile;
 const char resultFileName[] = "results.csv"; 
+boolean sdcard_not_found = false;
 
 // total sensor types
 const uint8_t amountOfSensors = 6;
@@ -83,8 +84,11 @@ unsigned long previousPollingMillis = 0;
 unsigned long previousButtonPressMillis = 0;
 unsigned short lcdTimeToSleep = 15000;
 
+TaskHandle_t AirQTaskHandle;
+
 // declare before setup so calling is possible => https://community.platformio.org/t/order-of-function-declaration/4546/2
 void handleButtonPress();
+void AirQTask( void * pvParameters );
 
 void setup() {
   // setup serial for debugging
@@ -111,6 +115,7 @@ void setup() {
 	}
   if (!SD.begin(4)) {
     Serial.println("initialization failed!");
+    sdcard_not_found = true;
   } else {
     Serial.println("Started SPI");
   }
@@ -133,6 +138,17 @@ void setup() {
     // close the file:
     myFile.close();
 
+
+  // run on a dedicated CPU core 
+  xTaskCreatePinnedToCore(
+                    AirQTask,   /* Task function. */
+                    "AirQTask",     /* name of task. */
+                    10000,       /* Stack size of task */
+                    NULL,        /* parameter of the task */
+                    1,           /* priority of the task */
+                    &AirQTaskHandle,      /* Task handle to keep track of created task */
+                    1);          /* pin task to core 0 */                  
+  delay(500); 
 
   }
 }
@@ -256,7 +272,9 @@ void sensorLogic() {
     sensorOutputResults[4] = bme.readPressure() / 100.0F;
     sensorOutputResults[5] = bme.readAltitude(SEALEVELPRESSURE_HPA);
     // save sensor values to SD Card to sd card
-    storageLogic();
+    if (!sdcard_not_found) {
+      storageLogic();
+    }
   }
 
 }
@@ -266,19 +284,24 @@ void start() {
   sensorLogic();
 }
 
-void loop() {
+void AirQTask( void * pvParameters ) {
   // wait for 10 seconds for all sensors to get ready one time
-  unsigned long currentMillis = 0;
-  if (!sensorsReadyState) {
-     currentMillis = millis();
-  }
-  if(currentMillis > sensorHeatupTime || sensorsReadyState) {
-    if (sensorsReadyState == false) {
-      sensorsReadyState = true;
-      lcd.clear();
+  for (;;){
+    unsigned long currentMillis = 0;
+    if (!sensorsReadyState) {
+      currentMillis = millis();
     }
-    start();
-  } else {
-    showBootLoop();
+    if(currentMillis > sensorHeatupTime || sensorsReadyState) {
+      if (sensorsReadyState == false) {
+        sensorsReadyState = true;
+        lcd.clear();
+      }
+      start();
+    } else {
+      showBootLoop();
+    }
   }
 }
+
+
+void loop() { }
