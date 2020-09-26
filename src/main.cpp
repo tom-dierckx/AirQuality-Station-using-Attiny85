@@ -1,35 +1,5 @@
 #include <Arduino.h>
 
-// wifi setup
-#include <esp_wifi.h>
-#include <WiFi.h>
-#include <WiFiClient.h>
-#include <HTTPClient.h>
-#define ESP_getChipId()   ((uint32_t)ESP.getEfuseMac())
-#define LED_ON      HIGH
-#define LED_OFF     LOW
-#include <ESP_WiFiManager.h>      
-// SSID and PW for your Router
-String Router_SSID;
-String Router_Pass;
-
-// SSID and PW for Config Portal
-String AP_SSID = "AirQ-Station";
-String AP_PASS = "start-up";
-
-IPAddress stationIP   = IPAddress(192, 168, 2, 114);
-IPAddress gatewayIP   = IPAddress(192, 168, 2, 1);
-IPAddress netMask     = IPAddress(255, 255, 255, 0);
-IPAddress dns1IP      = gatewayIP;
-IPAddress dns2IP      = IPAddress(8, 8, 8, 8);
-
-// disable cloudflare
-#define USE_ESP_WIFIMANAGER_NTP       false
-
-// uploading to thingspeak
-const String thingsspeakAPI = "https://api.thingspeak.com/update";
-const String thingspeak_apiKey = "OO24HOX8BR7LTI5K";
-
 // #include <MemoryFree.h>
 // communication
 // wire for i2c
@@ -78,7 +48,7 @@ Adafruit_BME280 bme;
 Adafruit_CCS811 ccs;
 
 // for altitude calculation
-#define SEALEVELPRESSURE_HPA (1025)
+#define SEALEVELPRESSURE_HPA (1001)
 
 // file logic
 File myFile;
@@ -119,30 +89,6 @@ TaskHandle_t AirQTaskHandle;
 // declare before setup so calling is possible => https://community.platformio.org/t/order-of-function-declaration/4546/2
 void handleButtonPress();
 void AirQTask( void * pvParameters );
-
-void upload_sensordata( void * pvParameters )
-{
-  while(true) {
-    #define HEARTBEAT_INTERVAL    60000L
-    // Print hearbeat every HEARTBEAT_INTERVAL (10) seconds.
-    if (WiFi.status() == WL_CONNECTED) {
-      Serial.print("H");        // H means connected to WiFi
-      HTTPClient http;
-      http.begin(thingsspeakAPI);
-      http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-      
-      String httpRequestData = "api_key=" + thingspeak_apiKey + "&field1=" + sensorOutputResults[0] + "&field2=" + sensorOutputResults[1] + 
-        "&field3=" + sensorOutputResults[2] + "&field4=" + sensorOutputResults[3] + "&field5=" + sensorOutputResults[4];   
-      int httpResponseCode = http.POST(httpRequestData);
-      Serial.print("HTTP Response code: ");
-      Serial.println(httpResponseCode);
-      http.end();}
-    else {
-      Serial.print("F");        // F means not connected to WiFi
-    }
-    vTaskDelay(HEARTBEAT_INTERVAL / portTICK_PERIOD_MS);
-  }
-}
 
 void setup() {
   // setup serial for debugging
@@ -190,70 +136,7 @@ void setup() {
     // close the file:
     myFile.close();
   }
-
-  // run on a dedicated CPU core 
-  // xTaskCreatePinnedToCore(
-  //                   AirQTask,   /* Task function. */
-  //                   "AirQTask",     /* name of task. */
-  //                   10000,       /* Stack size of task */
-  //                   NULL,        /* parameter of the task */
-  //                   1,           /* priority of the task */
-  //                   &AirQTaskHandle,      /* Task handle to keep track of created task */
-  //                   1);          /* pin task to core 0 */                  
-  // delay(500); 
-
-  Serial.println("\nStarting AutoConnectWithFeedBack");
-
-  // Use this to default DHCP hostname to ESP8266-XXXXXX or ESP32-XXXXXX
-  //ESP_WiFiManager ESP_wifiManager;
-  // Use this to personalize DHCP hostname (RFC952 conformed)
-  ESP_WiFiManager ESP_wifiManager("AirQ-Station");
-
-  //reset settings - for testing
-  //ESP_wifiManager.resetSettings();
-
-
-  //set custom ip for portal
-  // ESP_wifiManager.setAPStaticIPConfig(IPAddress(192, 168, 100, 1), IPAddress(192, 168, 100, 1), IPAddress(255, 255, 255, 0));
-  // Set static IP, Gateway, Subnetmask, DNS1 and DNS2. New in v1.0.5+
-  // ESP_wifiManager.setSTAStaticIPConfig(stationIP, gatewayIP, netMask, dns1IP, dns2IP);
-
-
-  // We can't use WiFi.SSID() in ESP32 as it's only valid after connected.
-  // SSID and Password stored in ESP32 wifi_ap_record_t and wifi_config_t are also cleared in reboot
-  // Have to create a new function to store in EEPROM/SPIFFS for this purpose
-  // Router_SSID = ESP_wifiManager.WiFi_SSID();
-  // Router_Pass = ESP_wifiManager.WiFi_Pass();
-
-  //Remove this line if you do not want to see WiFi password printed
-  Serial.println("Stored: SSID = " + Router_SSID + ", Pass = " + Router_Pass);
-
-  // Get Router SSID and PASS from EEPROM, then open Config portal AP named "ESP_XXXXXX_AutoConnectAP" and PW "MyESP_XXXXXX"
-  // 1) If got stored Credentials, Config portal timeout is 60s
-  // 2) If no stored Credentials, stay in Config portal until get WiFi Credentials
-  ESP_wifiManager.setConfigPortalTimeout(60);
-  lcd.backlight(); 
-  lcd.setCursor(0, 0); 
-  lcd.print("Starting wifi");
-  ESP_wifiManager.autoConnect(AP_SSID.c_str(), AP_PASS.c_str());
-  
-  //if you get here you have connected to the WiFi
-  Serial.println("WiFi connected");
-
-  xTaskCreatePinnedToCore(
-                    upload_sensordata,   /* Function to implement the task */
-                    "uploadSensorData", /* Name of the task */
-                    10000,      /* Stack size in words */
-                    NULL,       /* Task input parameter */
-                    0,          /* Priority of the task */
-                    NULL,       /* Task handle. */
-                    0);  /* Core where the task should run */
- 
-  Serial.println("Task created...");
-
 }
-
-
 
 void showBootLoop(){
   lcd.setCursor(0, 0);
@@ -417,6 +300,7 @@ void loop() {
       }
       start();
     } else {
+      Serial.println("Boot sequence");
       showBootLoop();
     }
 }
