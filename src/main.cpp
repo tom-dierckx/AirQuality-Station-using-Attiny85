@@ -56,24 +56,22 @@ const char resultFileName[] = "/results.csv";
 boolean sdcard_not_found = false;
 
 // total sensor types
-const uint8_t amountOfSensors = 6;
+const uint8_t amountOfSensors = 5;
 float sensorOutputResults[amountOfSensors];
 const char sensorNames[amountOfSensors][14] = {
   "CO2", 
   "Voc", 
   "Temp",
   "Humidity",
-  "BaroPressure",
-  "Altitude"
+  "BaroPressure"
 };
 // order has to match sensorNames
 const char sensorValueUnit[amountOfSensors][4] = {
   "ppm", 
   "ppb", 
-  "*C",
+  "°C",
   "%",
-  "hPa",
-  "m"
+  "hPa"
 };
 
 // sensor polling interval
@@ -84,11 +82,8 @@ unsigned long previousPollingMillis = 0;
 unsigned long previousButtonPressMillis = 0;
 unsigned short lcdTimeToSleep = 15000;
 
-TaskHandle_t AirQTaskHandle;
-
 // declare before setup so calling is possible => https://community.platformio.org/t/order-of-function-declaration/4546/2
 void handleButtonPress();
-void AirQTask( void * pvParameters );
 
 void setup() {
   // setup serial for debugging
@@ -268,26 +263,6 @@ void start() {
   sensorLogic();
 }
 
-void AirQTask( void * pvParameters ) {
-  // wait for 10 seconds for all sensors to get ready one time
-  for (;;){
-    unsigned long currentMillis = 0;
-    if (!sensorsReadyState) {
-      currentMillis = millis();
-    }
-    if(currentMillis > sensorHeatupTime || sensorsReadyState) {
-      if (sensorsReadyState == false) {
-        sensorsReadyState = true;
-        lcd.clear();
-      }
-      start();
-    } else {
-      showBootLoop();
-    }
-  }
-}
-
-
 void loop() {
   unsigned long currentMillis = 0;
     if (!sensorsReadyState) {
@@ -300,7 +275,6 @@ void loop() {
       }
       start();
     } else {
-      Serial.println("Boot sequence");
       showBootLoop();
     }
 }
