@@ -19,6 +19,9 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 
+// Custom classes
+#include <DisplayHandler.h>
+
 bool sensorsReadyState = false;  // state if sensors are heated
 
 const unsigned short sensorHeatupTime = 8000;   // time for sensors to heat up
