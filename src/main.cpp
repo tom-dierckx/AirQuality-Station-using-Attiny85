@@ -21,13 +21,21 @@ bool sensorsReadyState = false;  // state if sensors are heated
 
 const unsigned short sensorHeatupTime = 8000;   // time for sensors to heat up
 
-const uint8_t buttonPin = 2;   // pin used for button to cycle in the menu
+   // pin used for button to cycle in the menu
+// debug pins
 const uint8_t errorPin = 1;
 const uint8_t okPin = 4;
+
+// button logic
+const uint8_t buttonPin = 3;
 boolean buttonState = LOW;
-boolean previousButtonState = LOW;
-unsigned long previousButtonPollMillis = 0;
-const  uint8_t buttonInterval = 20;
+boolean lastButtonState = LOW;
+
+// the following variables are unsigned longs because the time, measured in
+// milliseconds, will quickly become a bigger number than can be stored in an int.
+unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
+unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
+
 uint8_t menuSelectedSensor = 0;
 uint8_t oldSelectedMenu = 0;
 
@@ -80,13 +88,6 @@ void setup() {
   pinMode(okPin, OUTPUT);
   digitalWrite(errorPin, LOW);
   digitalWrite(okPin, LOW);  
-  // pinMode(buttonPin, INPUT_PULLUP);
-  // attachInterrupt(digitalPinToInterrupt(buttonPin), handleButtonPress, CHANGE);
-  // GIMSK |= (1 << PCIE);   // pin change interrupt enable
-	// PCMSK |= (1 << PCINT4); // pin change interrupt enabled for PCINT4
-	// sei();                  // enable interrupts
-
-  // lcd.init();                        // Initialize I2C LCD module
   if(!ccs.begin()){
     digitalWrite(errorPin, HIGH);
     while(1);
@@ -120,34 +121,51 @@ void showBootLoop(){
   }
 }
 
-// ISR(PCINT0_vect) {
-//   // buttonState = digitalRead(buttonPin);
-//   // if (buttonState == LOW) {
-//   //   menuSelectedSensor++;
-//   // }
-//   buttonState = digitalRead(buttonPin);
-//   if (buttonState == LOW) {
-//     menuSelectedSensor++;
-//   }
-// }
+void button_logic() {
+  boolean reading = digitalRead(buttonPin);
+
+  // check to see if you just pressed the button
+  // (i.e. the input went from LOW to HIGH), and you've waited long enough
+  // since the last press to ignore any noise:
+
+  // If the switch changed, due to noise or pressing:
+  if (reading != lastButtonState) {
+    // reset the debouncing timer
+    lastDebounceTime = millis();
+  }
+
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    // whatever the reading is at, it's been there for longer than the debounce
+    // delay, so take it as the actual current state:
+
+    // if the button state has changed:
+    if (reading != buttonState) {
+      buttonState = reading;
+
+      // only toggle the LED if the new button state is HIGH
+      if (buttonState == HIGH) {
+        menuSelectedSensor++;
+      }
+    }
+  }
+  lastButtonState = reading;
+}
 
 void view() {
   // This method handles all the UI stuff 
   // button changed in the last 20 millis it got pressed and we need to refresh the display
   unsigned long currentMillis = millis();
-  if(currentMillis - previousButtonPollMillis >= buttonInterval)
-  {
-    // Serial.print("Currently selected menu");
-    // Serial.println(menuSelectedSensor);
-    if(oldSelectedMenu != menuSelectedSensor) {
-      // change detected clear lcd for new data
-      lcd.clear();
-      lcd.backlight();
-      // reset timer
-      previousButtonPressMillis = currentMillis;
-    }
-    oldSelectedMenu = menuSelectedSensor;
+
+  // Serial.print("Currently selected menu");
+  // Serial.println(menuSelectedSensor);
+  if(oldSelectedMenu != menuSelectedSensor) {
+    // change detected clear lcd for new data
+    lcd.clear();
+    lcd.backlight();
+    // reset timer
+    previousButtonPressMillis = currentMillis;
   }
+  oldSelectedMenu = menuSelectedSensor;
   
   if (currentMillis - previousButtonPressMillis > lcdTimeToSleep ) {
      lcd.noBacklight();
@@ -188,7 +206,7 @@ void sensorLogic() {
     }
     
     sensorOutputResults[2] = bme.readFixedTempC() / 100.0;
-    sensorOutputResults[3] = bme.readFixedHumidity()/ 100.1;
+    sensorOutputResults[3] = bme.readFixedHumidity()/ 1000.0;
     sensorOutputResults[4] = bme.readFixedPressure() / 100.0;
   }
 
@@ -197,6 +215,7 @@ void sensorLogic() {
 void start() {
   view();
   sensorLogic();
+  button_logic();
 }
 
 void loop() {
