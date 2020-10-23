@@ -7,6 +7,8 @@
 // Requires headers for AVR defines and ISR function
 // #include <avr/io.h>
 // #include <avr/interrupt.h>
+#include <avr/sleep.h>
+#define adc_disable() (ADCSRA &= ~(1<<ADEN)) // disable ADC (before power-off)
 
 #define INTERRUPT_PIN PCINT1  // This is PB1 per the schematic
 #define INT_PIN PB1  
@@ -67,7 +69,7 @@ const char sensorNames[amountOfSensors][8] = {
 const char sensorValueUnit[amountOfSensors][4] = {
   "ppm", 
   "ppb", 
-  "°C",
+  "C",
   "%",
   "hPa"
 };
@@ -78,7 +80,7 @@ unsigned long previousPollingMillis = 0;
 
 // lcd variable
 unsigned long previousButtonPressMillis = 0;
-const unsigned short lcdTimeToSleep = 15000;
+const unsigned short lcdTimeToSleep = 5000;
 
 // declare before setup so calling is possible => https://community.platformio.org/t/order-of-function-declaration/4546/2
 // void handleButtonPress();
@@ -92,10 +94,15 @@ void setup() {
     digitalWrite(errorPin, HIGH);
     while(1);
   }
+  ccs.setDriveMode(CCS811_DRIVE_MODE_10SEC);
   if (!bme.beginI2C(bme280Addr)) {
 		digitalWrite(errorPin, HIGH);
     while(1);
 	}
+  // make sensor sleep for low power
+  bme.setMode(tiny::Mode::SLEEP);
+  // disable ADC no need for it 
+  adc_disable();
   lcd.init();
   lcd.backlight();
 }
@@ -103,22 +110,7 @@ void setup() {
 void showBootLoop(){
   lcd.setCursor(0, 0);
   lcd.backlight();  
-  lcd.print("Booting up");
-  unsigned long currentMillis = millis();
-  if(currentMillis - previousbootinMillis > bootingDotsdelay) {
-    previousbootinMillis = currentMillis; 
-     lcd.setCursor(11,0 );
-    if (bootingdots == 0) {
-      bootingdots++;
-      lcd.print(".  ");
-    } else if (bootingdots == 1) {
-      bootingdots++;
-      lcd.print(".. ");
-    } else if (bootingdots == 2) {
-      bootingdots = 0;
-      lcd.print("...");
-    }
-  }
+  lcd.print("Heating sensors");
 }
 
 void button_logic() {
@@ -204,7 +196,10 @@ void sensorLogic() {
         digitalWrite(errorPin, HIGH);
       }
     }
-    
+    bme.setMode(tiny::Mode::FORCED);
+    // wait for mesurement
+    while(bme.isMeasuring() == false) ; //Wait for sensor to start measurment
+    while(bme.isMeasuring() == true) ; //Hang out while sensor completes the reading
     sensorOutputResults[2] = bme.readFixedTempC() / 100.0;
     sensorOutputResults[3] = bme.readFixedHumidity()/ 1000.0;
     sensorOutputResults[4] = bme.readFixedPressure() / 100.0;
@@ -212,28 +207,8 @@ void sensorLogic() {
 
 }
 
-void start() {
+void loop() {
   view();
   sensorLogic();
   button_logic();
 }
-
-void loop() {
-  unsigned long currentMillis = 0;
-    if (!sensorsReadyState) {
-      currentMillis = millis();
-    }
-    if(currentMillis > sensorHeatupTime || sensorsReadyState) {
-      if (sensorsReadyState == false) {
-        sensorsReadyState = true;
-        lcd.clear();
-      }
-      start();
-    } else {
-      showBootLoop();
-    }
-}
-// void loop() {
-//   digitalWrite(okPin, HIGH);   // turn the LED on (HIGH is the voltage level)
-//   delay(1000);                       // wait for a second
-// }
