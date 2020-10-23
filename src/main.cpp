@@ -5,8 +5,8 @@
 #include "Adafruit_CCS811.h"
 
 // Requires headers for AVR defines and ISR function
-#include <avr/io.h>
-#include <avr/interrupt.h>
+// #include <avr/io.h>
+// #include <avr/interrupt.h>
 
 #define INTERRUPT_PIN PCINT1  // This is PB1 per the schematic
 #define INT_PIN PB1  
@@ -22,6 +22,8 @@ bool sensorsReadyState = false;  // state if sensors are heated
 const unsigned short sensorHeatupTime = 8000;   // time for sensors to heat up
 
 const uint8_t buttonPin = 2;   // pin used for button to cycle in the menu
+const uint8_t errorPin = 1;
+const uint8_t okPin = 4;
 boolean buttonState = LOW;
 boolean previousButtonState = LOW;
 unsigned long previousButtonPollMillis = 0;
@@ -74,19 +76,27 @@ const unsigned short lcdTimeToSleep = 15000;
 // void handleButtonPress();
 
 void setup() {
-  pinMode(buttonPin, INPUT_PULLUP);
+  pinMode(errorPin, OUTPUT);
+  pinMode(okPin, OUTPUT);
+  digitalWrite(errorPin, LOW);
+  digitalWrite(okPin, LOW);  
+  // pinMode(buttonPin, INPUT_PULLUP);
   // attachInterrupt(digitalPinToInterrupt(buttonPin), handleButtonPress, CHANGE);
-  GIMSK |= (1 << PCIE);   // pin change interrupt enable
-	PCMSK |= (1 << PCINT4); // pin change interrupt enabled for PCINT4
-	sei();                  // enable interrupts
+  // GIMSK |= (1 << PCIE);   // pin change interrupt enable
+	// PCMSK |= (1 << PCINT4); // pin change interrupt enabled for PCINT4
+	// sei();                  // enable interrupts
 
-  lcd.init();                        // Initialize I2C LCD module
+  // lcd.init();                        // Initialize I2C LCD module
   if(!ccs.begin()){
+    digitalWrite(errorPin, HIGH);
     while(1);
   }
-  if (!bme.begin()) {
-		while (1);
+  if (!bme.beginI2C(bme280Addr)) {
+		digitalWrite(errorPin, HIGH);
+    while(1);
 	}
+  lcd.init();
+  lcd.backlight();
 }
 
 void showBootLoop(){
@@ -110,16 +120,16 @@ void showBootLoop(){
   }
 }
 
-ISR(PCINT0_vect) {
-  // buttonState = digitalRead(buttonPin);
-  // if (buttonState == LOW) {
-  //   menuSelectedSensor++;
-  // }
-  buttonState = digitalRead(buttonPin);
-  if (buttonState == LOW) {
-    menuSelectedSensor++;
-  }
-}
+// ISR(PCINT0_vect) {
+//   // buttonState = digitalRead(buttonPin);
+//   // if (buttonState == LOW) {
+//   //   menuSelectedSensor++;
+//   // }
+//   buttonState = digitalRead(buttonPin);
+//   if (buttonState == LOW) {
+//     menuSelectedSensor++;
+//   }
+// }
 
 void view() {
   // This method handles all the UI stuff 
@@ -173,7 +183,7 @@ void sensorLogic() {
         sensorOutputResults[1] = ccs.getTVOC();
       }
       else{
-        while(1);
+        digitalWrite(errorPin, HIGH);
       }
     }
     
@@ -204,3 +214,7 @@ void loop() {
       showBootLoop();
     }
 }
+// void loop() {
+//   digitalWrite(okPin, HIGH);   // turn the LED on (HIGH is the voltage level)
+//   delay(1000);                       // wait for a second
+// }
