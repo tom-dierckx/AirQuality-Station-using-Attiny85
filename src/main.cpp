@@ -21,15 +21,13 @@ tiny::BME280 bme;
 
 bool sensorsReadyState = false;  // state if sensors are heated
 
-const unsigned short sensorHeatupTime = 8000;   // time for sensors to heat up
 
    // pin used for button to cycle in the menu
 // debug pins
-const uint8_t errorPin = 1;
-const uint8_t okPin = 4;
+const uint8_t errorPin = 3;
 
 // button logic
-const uint8_t buttonPin = 3;
+const uint8_t buttonPin = 4;
 boolean buttonState = LOW;
 boolean lastButtonState = LOW;
 
@@ -87,9 +85,7 @@ const unsigned short lcdTimeToSleep = 5000;
 
 void setup() {
   pinMode(errorPin, OUTPUT);
-  pinMode(okPin, OUTPUT);
   digitalWrite(errorPin, LOW);
-  digitalWrite(okPin, LOW);  
   if(!ccs.begin()){
     digitalWrite(errorPin, HIGH);
     while(1);
