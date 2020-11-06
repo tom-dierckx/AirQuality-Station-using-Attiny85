@@ -8,10 +8,7 @@
 // #include <avr/io.h>
 // #include <avr/interrupt.h>
 #include <avr/sleep.h>
-#define adc_disable() (ADCSRA &= ~(1<<ADEN)) // disable ADC (before power-off)
-
-#define INTERRUPT_PIN PCINT1  // This is PB1 per the schematic
-#define INT_PIN PB1  
+#define adc_disable() (ADCSRA &= ~(1<<ADEN))
 
 // libs for BME280
 // #include <Adafruit_BME280.h>

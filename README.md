@@ -43,9 +43,9 @@ Items needed for the electronic circuit:
 
 Printable components:
 
-Battery case: I used this 18650 battery case that I found on thingiverse [here](https://www.thingiverse.com/thing:535688) it worked well even if it is deprecated (used aluminium from a coca cola can as leads).
+Battery case: I used this 18650 battery case that I found on Thingiverse [here](https://www.thingiverse.com/thing:535688) it worked well even if it is deprecated (used aluminium from a coca cola can as leads).
 
-Arduino UNO for programming the attiny85.
+Arduino UNO for programming the attiny85 and a 10uF electrolytic capacitor.
 
 As I'm just doing this in my spare time I just use my glue gun to fix everything in place. So if you do not change the models you are going to need a glue gun and alot of glue :D.
 
@@ -64,9 +64,13 @@ The button is used to cycle all the sensor values on the display.
 
 Just import this repository in platformIO and you should be good to go, the code isn't that complex. If you have any questions you can always contact me on Github.
 
+I used this [documentation](https://create.arduino.cc/projecthub/arjun/programming-attiny85-with-arduino-uno-afb829) for flashing an Attiny85 using an arduino UNO. 
+
+Settings in the `platformio.ini` file work with this method (Do not forget the electrolytic capacitor!).
+
 ## Can we finally build the thing please
 
-I uploaded the STL files to thingiverse. You can find these [here]().
+I uploaded the STL files to Thingiverse. You can find these [here]().
 Or in the images directory in this repository. 
 
 
