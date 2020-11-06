@@ -51,21 +51,23 @@ As I'm just doing this in my spare time I just use my glue gun to fix everything
 
 ### Connecting everything together.
 
+#### Schematic
+
+![Schematic](images/SchematicAirQ.png "Schematic")
+
 I just connected all the i2c interfaces together. And attached the button and a red LED to the attiny85. The red led is the `errorPin` in code and will get lit when the attiny cannot setup a connection with a sensor.
 
 The button is used to cycle all the sensor values on the display.
 
-TODO: make a simple diagram
 
 ## Code part
 
-Just import this repository in platformIO and you should be good to go, the code isn't that complex. If you have any questions shoot.
+Just import this repository in platformIO and you should be good to go, the code isn't that complex. If you have any questions you can always contact me on Github.
 
 ## Can we finally build the thing please
 
 I uploaded the STL files to thingiverse. You can find these [here]().
 Or in the images directory in this repository. 
-
 
 
 
