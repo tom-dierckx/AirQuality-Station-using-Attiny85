@@ -1,5 +1,7 @@
 # Battery powered portable air quality station
 
+![AirQStation](images/IMG_4091_2.jpg "AirQStation")
+
 As we have all been more indoors during the COVID crisis. Keeping rooms well ventilated is really important. I build this station as a reminder to open my windows when the CO2 levels indoor had risen above a certain level.
 
 What can it measure: CO2, Volatile organic compounds, temperature (degrees Celsius this can be changed in code), humidity and barometric pressure.
