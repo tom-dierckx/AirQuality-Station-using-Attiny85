@@ -2,10 +2,10 @@
 
 ![AirQStation](images/IMG_4091_2.jpg "AirQStation")
 
-As we have all been more indoors during the COVID crisis. Keeping rooms well ventilated is important, I build this station as a reminder to open my window from time to time.
+As we have all been more indoors during the COVID crisis. Keeping rooms well ventilated is important, I built this station as a reminder to open my window from time to time.
 **Warning**: to get precise measurements you will want to calibrate the sensors against known sources!
 
-This build is capable of measuring: CO2, Volatile organic compounds, temperature (degrees Celsius this can be changed in code), humidity and barometric pressure. As this uses i2c to connect to the sensors any other i2c 3.3V enabled sensor can probably be used (the attiny85 memory is the only limiting factor here).
+This setup is capable of measuring: CO2, Volatile organic compounds, temperature (degrees Celsius this can be changed in code), humidity and barometric pressure. As this uses i2c to connect to the sensors any other i2c 3.3V enabled sensor can probably be used (the attiny85 memory is the only limiting factor here).
 
 This is a revision of an Air quality station that I build during the initial lockdown in March that I have been using to monitor the indoor air levels. The old version was based around the CCS811 and the DHT22 sensor. I wasn't happy about the code so I only published the DHT22 part [here](https://github.com/tom-dierckx/DHT-attiny85-i2c) and the 3d printed case [here](https://www.thingiverse.com/thing:4262574).
 
@@ -84,7 +84,7 @@ Settings in the `platformio.ini` file work with this method (Do not forget the e
 
 ### Attiny85 bootloader
 
-I installed the bootloader with the 1Mhz internal clock configuration this is the lowest clock (the lower the clock the lower the power consumption) before making the code unstable.
+I installed the bootloader with the 1Mhz internal clock configuration this is the lowest clock (the lower the clock the lower the powerconsumption) before making the code unstable.
 
 ## Can we finally build the thing please
 
