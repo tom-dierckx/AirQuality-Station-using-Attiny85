@@ -2,13 +2,12 @@
 
 ![AirQStation](images/IMG_4091_2.jpg "AirQStation")
 
-As we have all been more indoors during the COVID crisis. Keeping rooms well ventilated is important. I build this station as a reminder to open my windows from time to time.
+As we have all been more indoors during the COVID crisis. Keeping rooms well ventilated is important, I build this station as a reminder to open my window from time to time.
+**Warning**: to get precise measurements you will want to calibrate the sensors against known sources!
 
-This build is capable of measuring: CO2, Volatile organic compounds, temperature (degrees Celsius this can be changed in code), humidity and barometric pressure. As this uses i2c to connect to the sensors any other i2c 3.3V enabled sensor can probably be used.
+This build is capable of measuring: CO2, Volatile organic compounds, temperature (degrees Celsius this can be changed in code), humidity and barometric pressure. As this uses i2c to connect to the sensors any other i2c 3.3V enabled sensor can probably be used (the attiny85 memory is the only limiting factor here).
 
-I decided to build an AirQ station in March that I have been using to monitor the indoor air levels. The sensors are not calibrated and cannot be relied on for medical uses I just compare the air quality when the windows is open compared to a closed window.
-
-The old version was based around the CCS811 and the DHT22 sensor. I wasn't happy about the code so I only published the DHT22 part [here](https://github.com/tom-dierckx/DHT-attiny85-i2c) and the 3d printed case [here](https://www.thingiverse.com/thing:4262574).
+This is a revision of an Air quality station that I build during the initial lockdown in March that I have been using to monitor the indoor air levels. The old version was based around the CCS811 and the DHT22 sensor. I wasn't happy about the code so I only published the DHT22 part [here](https://github.com/tom-dierckx/DHT-attiny85-i2c) and the 3d printed case [here](https://www.thingiverse.com/thing:4262574).
 
 We are in a lock-down again so it was time for a revision, a portable version powered by a battery. This time I removed some unused features (previous version could store on an SD card using SPI) and switched the Arduino mini with an Attiny85 running on a lower clock (1 Mhz internal).  
 I also changed the DHT22 to the much more accurate and also i2c enabled BME280 sensor.
@@ -19,11 +18,11 @@ I also changed the DHT22 to the much more accurate and also i2c enabled BME280 s
 
 I used breakouts of the following sensors acquired on Aliexpress.
 
-CCS811 3.3V version:
+CCS811 3.3V version [datasheet](https://cdn.sparkfun.com/assets/learn_tutorials/1/4/3/CCS811_Datasheet-DS000459.pdf):
 - CO2 particles in the air
 - Volatile organic compounds
 
-BME280 3.3V version:
+BME280 3.3V version [datasheet](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf):
 - Temperature
 - Humidity
 - Air pressure
@@ -33,7 +32,7 @@ Both of these breakouts expose an i2c interface (and spi) that we will use.
 ### Other electric components/modules
 
 Items needed for the electronic circuit:
-- LCD display with the i2c interface attached.
+- LCD display 16 x 2 with the i2c interface attached.
 - Attiny85
 - Lithium battery charger (based on the TP4056)
 - Lithium Ion Battery (Type 18650)
@@ -43,7 +42,7 @@ Items needed for the electronic circuit:
 - Button
 - PCB Prototype Matrix
 
-And a couple of M3 nuts and bolts.
+And 4 x M3 nuts and bolts for connecting the display to the case.
 
 Printable components:
 
@@ -51,7 +50,7 @@ Battery case: I used this 18650 battery case that I found on Thingiverse [here](
 
 Arduino UNO for programming the attiny85 and a 10uF electrolytic capacitor.
 
-As I'm just doing this in my spare time I just use my glue gun to fix everything in place. So if you do not change the models you are going to need a glue gun and alot of glue :D.
+As I'm just doing this in my spare time I just use my glue gun to fix everything in place. So if you do not change the models you are going to need a glue gun and a lot of glue :D.
 
 ### Connecting everything together.
 
@@ -85,7 +84,7 @@ Settings in the `platformio.ini` file work with this method (Do not forget the e
 
 ### Attiny85 bootloader
 
-I installed the bootloader with the 1Mhz internal clock configuration this is the lowest clock (the lower the clock the lower the powerconsumption) before making the code unstable.
+I installed the bootloader with the 1Mhz internal clock configuration this is the lowest clock (the lower the clock the lower the power consumption) before making the code unstable.
 
 ## Can we finally build the thing please
 
