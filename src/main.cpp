@@ -196,6 +196,8 @@ void sensorLogic() {
     sensorOutputResults[2] = bme.readFixedTempC() / 100.0;
     sensorOutputResults[3] = bme.readFixedHumidity()/ 1000.0;
     sensorOutputResults[4] = bme.readFixedPressure() / 100.0;
+    // Add environment measurements to ccs the casting doesn't do any rounding only 8 bytes left so I'm willing to accept the error
+    ccs.setEnvironmentalData((uint8_t) sensorOutputResults[3],sensorOutputResults[2]);
   }
 
 }
